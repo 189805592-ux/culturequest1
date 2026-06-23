@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, maximum-scale=2.0">
+  <title>CultureQuest · 英美文化对话冒险</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: 'Nunito', 'Patrick Hand', sans-serif;
+      background: linear-gradient(145deg, #fef9e7 0%, #fdebd0 100%);
+      background-attachment: fixed;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.5rem; position: relative;
+    }
+    body::before {
+      content: ""; position: fixed; top:0; left:0; width:100%; height:100%;
+      background-image: radial-gradient(circle at 20% 30%, rgba(255,241,188,0.4) 0%, transparent 30%),
+                        radial-gradient(circle at 80% 70%, rgba(255,204,184,0.3) 0%, transparent 40%),
+                        url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" opacity="0.08"><circle cx="20" cy="20" r="3" fill="%23f4a261"/><circle cx="80" cy="15" r="4" fill="%23e9c46a"/><circle cx="70" cy="80" r="3" fill="%23f4a261"/><circle cx="15" cy="75" r="4" fill="%23e9c46a"/></svg>');
+      background-size: 200px 200px, 200px 200px, 120px 120px;
+      pointer-events: none; z-index: 0;
+    }
+    #app {
+      position: relative; z-index:2;
+      width: 100%; max-width: 700px;
+      background: rgba(255,255,255,0.7); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      border-radius: 48px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.15);
+      border: 1px solid rgba(255,255,255,0.7); padding: 2rem 1.8rem;
+    }
+    .card {
+      background: rgba(255,251,245,0.8); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      border-radius: 36px; padding: 1.8rem; margin-bottom: 1.2rem;
+      border: 1px solid rgba(255,243,204,0.9); box-shadow: 0 12px 24px -8px rgba(180,120,60,0.15);
+    }
+    h1,h2,h3 { font-family: 'Patrick Hand', cursive; color: #5c4b3c; letter-spacing: 0.5px; }
+    button {
+      font-family: 'Nunito', sans-serif; font-weight: 700;
+      border: none; border-radius: 40px; padding: 0.7rem 1.8rem;
+      background: #fde2c4; color: #5e3e2b; font-size: 1rem; cursor: pointer;
+      transition: 0.2s; box-shadow: 0 6px 12px rgba(184,140,96,0.25);
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+      border: 1px solid #ffe9d4; letter-spacing: 0.3px;
+    }
+    button:hover { background: #ffe1b3; box-shadow: 0 10px 18px rgba(184,140,96,0.35); transform: scale(1.02); }
+    button:active { transform: translateY(2px); box-shadow: 0 4px 10px rgba(184,140,96,0.3); }
+    button.primary { background: #ffb87a; color: #482e1b; border-color: #ffd6ae; }
+    button.danger { background: #ffe0d0; color: #a13e3e; }
+    input {
+      width: 100%; padding: 0.9rem 1.4rem; border-radius: 40px;
+      border: 1px solid #eddcc9; background: #fffdf7; font-size: 1rem;
+      font-family: 'Nunito', sans-serif; margin: 0.5rem 0 1rem;
+      box-shadow: inset 0 2px 6px rgba(180,140,100,0.08); transition: 0.2s;
+    }
+    input:focus { outline: none; border-color: #f4a261; box-shadow: 0 0 0 3px rgba(244,162,97,0.3); }
+    .npc-area { display: flex; align-items: flex-start; gap: 0.8rem; margin: 1.2rem 0; }
+    .animal-avatar {
+      font-size: 3.5rem; filter: drop-shadow(0 8px 12px rgba(0,0,0,0.15));
+      background: #fff5e6; border-radius: 50%; width: 70px; height: 70px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 6px 14px rgba(150,100,50,0.25); border: 2px solid #ffe2b3; flex-shrink: 0;
+    }
+    .bubble {
+      background: #ffffff; border-radius: 28px 28px 28px 8px; padding: 1rem 1.4rem;
+      box-shadow: 0 10px 20px rgba(140,100,60,0.15); border: 1px solid #fae3cc;
+      font-size: 1.1rem; font-weight: 600; color: #4b3827; max-width: 80%; word-break: break-word;
+    }
+    .options-grid { display: flex; flex-direction: column; gap: 0.8rem; margin: 1.5rem 0; }
+    .option-btn {
+      background: #fff6eb; text-align: left; padding: 0.9rem 1.4rem; border-radius: 24px;
+      border: 1px solid #f7dcb8; font-weight: 600; color: #4e3b2c; width: 100%; justify-content: flex-start;
+    }
+    .option-btn.selected-correct { background: #d4edda; border-color: #b7d9b1; }
+    .option-btn.selected-wrong { background: #fce4e4; border-color: #f1c0c0; }
+    .timer-bar { height: 8px; background: #e9e1d0; border-radius: 10px; margin: 0.5rem 0 1rem; overflow: hidden; width: 100%; }
+    .timer-fill { height: 100%; background: #f4a261; border-radius: 10px; transition: width 0.1s linear; }
+    .ranking-list { list-style: none; padding: 0; }
+    .ranking-list li { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px dashed #e9dbc4; }
+    .small-text { font-size: 0.85rem; color: #7d6b5c; }
+    .badge { background: #ffdbb5; border-radius: 30px; padding: 0.2rem 0.9rem; font-size: 0.8rem; font-weight: 700; color: #543e2b; }
+    @media (max-width:500px) {
+      #app { padding: 1.5rem 1rem; }
+      .animal-avatar { width: 55px; height: 55px; font-size: 2.5rem; }
+    }
+  </style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+  (function() {
+    // ---------- 你的 Supabase 密钥 ----------
+    const SUPABASE_URL = 'https://jcwiclnkqyknvfcpgdlz.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impjd2ljbG5rcXlrbnZmY3BnZGx6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMDEwNTUsImV4cCI6MjA5Nzc3NzA1NX0.qJuYFMq6BSlAc0mLaYe6iVNUyl6TjaNp3-dsI-tt61c';
+
+    // 初始化 Supabase 客户端
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // 密码哈希函数
+    function hashPassword(password) {
+      return CryptoJS.SHA256(password + "culture_salt").toString();
+    }
+
+    // 本地存档 (仅用于游戏进度保存)
+    const SAVED_GAMES_KEY = 'cq_saved';
+    function getSavedGames() { return JSON.parse(localStorage.getItem(SAVED_GAMES_KEY) || '[]'); }
+    function saveSavedGames(games) { localStorage.setItem(SAVED_GAMES_KEY, JSON.stringify(games)); }
+    function genId() { return Date.now().toString(36) + Math.random().toString(36).substr(2); }
+
+    let currentUser = null;
+    let totalRanking = [];
+    let weeklyRanking = [];
+
+    // 情景数据
+    const scenarios = {
+      british_fox: {
+        id: 'british_fox', title: '🦊 英式下午茶 · 狐狸的委婉', animal: '🦊', animalName: 'Sir Fox',
+        steps: [
+          { npc: "Lovely weather we're having, isn't it? I do hope you're finding the biscuits satisfactory.",
+            options: [
+              { text: "Yes, delicious! And the weather is indeed perfect.", correct: true, feedback: "Perfectly polite and positive." },
+              { text: "Actually I'm quite full, and it's a bit cold outside.", correct: false, feedback: "Too direct; British small talk avoids blunt negatives." },
+              { text: "The biscuits are okay, but back home we have better ones.", correct: false, feedback: "Comparisons can sound impolite." }
+            ]},
+          { npc: "I was thinking of popping down to the bookshop later. Would you care to join?",
+            options: [
+              { text: "I'd love to, but I'm afraid I have a prior engagement.", correct: true, feedback: "A soft refusal is polite." },
+              { text: "No, I don't like bookshops.", correct: false, feedback: "Too abrupt for British manners." },
+              { text: "Yes! Let's go immediately!", correct: false, feedback: "Enthusiasm is fine, but phrasing is a bit too direct." }
+            ]},
+          { npc: "I must say, your accent is quite charming. Where did you learn English?",
+            options: [
+              { text: "Thank you! I studied in school and practiced with friends.", correct: true, feedback: "Gracious acceptance with humility." },
+              { text: "My accent is terrible, I know.", correct: false, feedback: "Self-deprecation is common, but outright denial sounds awkward." },
+              { text: "Better than yours, I hope!", correct: false, feedback: "Playful teasing can offend." }
+            ]}
+        ]
+      },
+      american_eagle: {
+        id: 'american_eagle', title: '🦅 美式办公室 · 老鹰的直率', animal: '🦅', animalName: 'Eagle Joe',
+        steps: [
+          { npc: "Hey! How's it going? Ready for the big presentation?",
+            options: [
+              { text: "Pretty good! A bit nervous but excited.", correct: true, feedback: "Casual and honest." },
+              { text: "I'm extremely anxious, I might fail.", correct: false, feedback: "Too negative; Americans prefer optimistic framing." },
+              { text: "I am doing well, thank you for inquiring.", correct: false, feedback: "Overly formal for casual office chat." }
+            ]},
+          { npc: "I loved your idea. Let's grab a coffee and brainstorm right now!",
+            options: [
+              { text: "Sounds great! Let's do it.", correct: true, feedback: "Direct and enthusiastic." },
+              { text: "Maybe later, I need to prepare alone.", correct: false, feedback: "Too dismissive; teamwork is valued." },
+              { text: "I am honored, but I must consult my schedule.", correct: false, feedback: "Too formal and indirect." }
+            ]},
+          { npc: "Between us, I think the boss liked my report better. No hard feelings?",
+            options: [
+              { text: "Of course not! Congrats, you deserved it.", correct: true, feedback: "Shows sportsmanship." },
+              { text: "Actually I think mine was more detailed.", correct: false, feedback: "Competitive but risks friction." },
+              { text: "Silence...", correct: false, feedback: "Avoiding the topic can seem cold." }
+            ]}
+        ]
+      },
+      panda_contrast: {
+        id: 'panda_contrast', title: '🐼 中式客套 · 熊猫的对比', animal: '🐼', animalName: 'Panda Mei',
+        steps: [
+          { npc: "你吃了吗？(Have you eaten yet?)",
+            options: [
+              { text: "Yes, I have. How about you?", correct: true, feedback: "Recognizes it as a greeting, not literal." },
+              { text: "Why do you ask? I can find food myself.", correct: false, feedback: "Misunderstands the cultural greeting." },
+              { text: "No, I'm starving! Let's eat.", correct: false, feedback: "Too literal; it's just a friendly hello." }
+            ]},
+          { npc: "小小礼物，不成敬意。(A small gift, not worthy of you.)",
+            options: [
+              { text: "Thank you, I really appreciate it.", correct: true, feedback: "Accept politely despite the modesty." },
+              { text: "Yes, it is small. But thanks anyway.", correct: false, feedback: "Pointing out the modesty is rude." },
+              { text: "You shouldn't have! I can't accept.", correct: false, feedback: "Refusing directly can cause loss of face." }
+            ]}
+        ]
+      }
+    };
+
+    let gameState = {
+      scenarioId: null, steps: [], currentStep: 0, score: 0, combo: 0,
+      mode: 'practice', answersLog: [], timerInterval: null, timeLeft: 15,
+      scenarioTitle: '', animal: '', animalName: ''
+    };
+
+    function resetGameState() {
+      if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+      gameState = {
+        scenarioId: null, steps: [], currentStep: 0, score: 0, combo: 0,
+        mode: 'practice', answersLog: [], timerInterval: null, timeLeft: 15,
+        scenarioTitle: '', animal: '', animalName: ''
+      };
+    }
+
+    async function checkAndResetWeekly(user) {
+      if (!user.week_start) return false;
+      const weekStart = new Date(user.week_start);
+      const now = new Date();
+      if ((now - weekStart) / (1000 * 60 * 60 * 24) >= 7) {
+        const { error } = await supabase
+          .from('users')
+          .update({ weekly_score: 0, week_start: now.toISOString() })
+          .eq('id', user.id);
+        if (!error) {
+          user.weekly_score = 0;
+          user.week_start = now.toISOString();
+          return true;
+        }
+      }
+      return false;
+    }
+
+    async function refreshRankings() {
+      try {
+        const { data: totalData } = await supabase
+          .from('users')
+          .select('username, total_score')
+          .order('total_score', { ascending: false })
+          .limit(10);
+        totalRanking = totalData || [];
+
+        const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        const { data: weekData } = await supabase
+          .from('users')
+          .select('username, weekly_score')
+          .gte('week_start', oneWeekAgo)
+          .order('weekly_score', { ascending: false })
+          .limit(10);
+        weeklyRanking = weekData || [];
+      } catch (e) {
+        console.warn('排行榜刷新失败', e);
+      }
+    }
+
+    const app = document.getElementById('app');
+
+    function renderLogin() {
+      app.innerHTML = `
+        <div class="card" style="text-align:center;">
+          <h1 style="font-size:2.5rem; margin-bottom:0.5rem;">📚 CultureQuest</h1>
+          <p class="small-text">Learn manners across cultures</p>
+          <input id="usernameInput" placeholder="Nickname" autocomplete="off">
+          <input id="passwordInput" type="password" placeholder="Password">
+          <button id="loginBtn" class="primary">Sign In</button>
+          <button id="registerBtn">Create Account</button>
+          <p id="loginMsg" class="small-text" style="margin-top:1rem;"></p>
+        </div>
+      `;
+      document.getElementById('loginBtn').onclick = async () => {
+        const username = document.getElementById('usernameInput').value.trim();
+        const password = document.getElementById('passwordInput').value;
+        if (!username || !password) {
+          document.getElementById('loginMsg').innerText = 'Please fill both fields.';
+          return;
+        }
+        const hash = hashPassword(password);
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('username', username)
+          .eq('password_hash', hash)
+          .single();
+        if (error || !data) {
+          document.getElementById('loginMsg').innerText = 'Invalid credentials or connection error.';
+          return;
+        }
+        currentUser = data;
+        await checkAndResetWeekly(currentUser);
+        await refreshRankings();
+        renderLobby();
+      };
+      document.getElementById('registerBtn').onclick = async () => {
+        const username = document.getElementById('usernameInput').value.trim();
+        const password = document.getElementById('passwordInput').value;
+        if (!username || !password) {
+          document.getElementById('loginMsg').innerText = 'Please fill both fields.';
+          return;
+        }
+        const hash = hashPassword(password);
+        const { data, error } = await supabase
+          .from('users')
+          .insert([{ username, password_hash: hash, total_score: 0, weekly_score: 0, week_start: new Date().toISOString() }])
+          .select()
+          .single();
+        if (error) {
+          if (error.code === '23505') {
+            document.getElementById('loginMsg').innerText = 'Username already exists.';
+          } else {
+            document.getElementById('loginMsg').innerText = 'Registration failed. Please check Supabase setup.';
+          }
+          return;
+        }
+        currentUser = data;
+        await refreshRankings();
+        renderLobby();
+      };
+    }
+
+    function renderLobby() {
+      if (!currentUser) { renderLogin(); return; }
+      app.innerHTML = `
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>👋 Welcome, ${currentUser.username}</h2>
+            <button id="logoutBtn" class="danger">Logout</button>
+          </div>
+          <p class="small-text">Total: ${currentUser.total_score || 0} · Weekly: ${currentUser.weekly_score || 0}</p>
+        </div>
+        <div class="card">
+          <h3>🎭 Choose a scenario</h3>
+          <div style="display:flex; flex-wrap:wrap; gap:0.6rem; margin:1rem 0;">
+            ${Object.values(scenarios).map(s => `<button class="scenario-btn" data-id="${s.id}">${s.animal} ${s.title.split('·')[0]}</button>`).join('')}
+            <button id="randomBtn" class="primary">🎲 Random Mix</button>
+          </div>
+          <div style="margin:1rem 0;">
+            <label><input type="radio" name="mode" value="practice" checked> 🧘 Practice</label>
+            <label style="margin-left:1rem;"><input type="radio" name="mode" value="challenge"> ⏱️ Challenge (15s)</label>
+          </div>
+          <button id="continueBtn" style="display:none;">📁 Continue saved game</button>
+        </div>
+        <div class="card">
+          <h3>🏆 Rankings</h3>
+          <div style="display:flex; gap:2rem; flex-wrap:wrap;">
+            <div style="flex:1;"><strong>All-time</strong><ul class="ranking-list">${totalRanking.map(u => `<li><span>${u.username}</span><span>${u.total_score || 0}</span></li>`).join('') || '<li>No data</li>'}</ul></div>
+            <div style="flex:1;"><strong>This Week</strong><ul class="ranking-list">${weeklyRanking.map(u => `<li><span>${u.username}</span><span>${u.weekly_score || 0}</span></li>`).join('') || '<li>No data</li>'}</ul></div>
+          </div>
+        </div>
+      `;
+      document.getElementById('logoutBtn').onclick = () => { currentUser = null; resetGameState(); renderLogin(); };
+      document.querySelectorAll('.scenario-btn').forEach(b => b.onclick = (e) => startGame(e.target.dataset.id));
+      document.getElementById('randomBtn').onclick = () => startGame(Object.keys(scenarios)[Math.floor(Math.random() * Object.keys(scenarios).length)]);
+      const saved = getSavedGames().find(g => g.user_id === currentUser.id);
+      if (saved) {
+        const btn = document.getElementById('continueBtn');
+        btn.style.display = 'inline-block';
+        btn.onclick = () => loadSavedGame(saved.id);
+      }
+    }
+
+    function loadSavedGame(saveId) {
+      const savedGames = getSavedGames();
+      const data = savedGames.find(g => g.id === saveId);
+      if (!data) return;
+      const scenario = scenarios[data.scenario_id];
+      if (!scenario) return;
+      gameState = {
+        scenarioId: data.scenario_id, steps: scenario.steps, currentStep: data.current_step,
+        score: data.score, combo: data.combo, mode: data.mode, answersLog: [],
+        timerInterval: null, timeLeft: 15, scenarioTitle: scenario.title,
+        animal: scenario.animal, animalName: scenario.animalName
+      };
+      saveSavedGames(savedGames.filter(g => g.id !== saveId));
+      renderGameStep();
+    }
+
+    function startGame(scenarioId) {
+      const scenario = scenarios[scenarioId];
+      if (!scenario) return;
+      const mode = document.querySelector('input[name="mode"]:checked')?.value || 'practice';
+      resetGameState();
+      gameState.scenarioId = scenarioId;
+      gameState.steps = scenario.steps;
+      gameState.mode = mode;
+      gameState.animal = scenario.animal;
+      gameState.animalName = scenario.animalName;
+      gameState.scenarioTitle = scenario.title;
+      renderGameStep();
+    }
+
+    function renderGameStep() {
+      if (gameState.currentStep >= gameState.steps.length) { endGame(); return; }
+      const step = gameState.steps[gameState.currentStep];
+      app.innerHTML = `
+        <div class="card">
+          <div style="display:flex; justify-content:space-between;">
+            <span class="badge">${gameState.animal} ${gameState.animalName}</span>
+            <span class="badge">Step ${gameState.currentStep+1}/${gameState.steps.length}</span>
+          </div>
+          <div class="npc-area">
+            <div class="animal-avatar">${gameState.animal}</div>
+            <div class="bubble">${step.npc}</div>
+          </div>
+          ${gameState.mode==='challenge' ? `
+            <div class="timer-bar"><div id="timerFill" class="timer-fill" style="width:100%"></div></div>
+            <p id="timerText" class="small-text">⏳ ${gameState.timeLeft}s</p>
+          ` : ''}
+          <div class="options-grid" id="optionsContainer">
+            ${step.options.map((opt,idx) => `<button class="option-btn" data-index="${idx}">${opt.text}</button>`).join('')}
+          </div>
+          <div id="feedbackArea" class="small-text" style="margin-top:0.8rem;"></div>
+        </div>
+        <button id="saveQuitBtn" style="margin-top:0.5rem;">💾 Save & Quit</button>
+      `;
+      document.querySelectorAll('.option-btn').forEach(b => b.onclick = (e) => handleOptionClick(parseInt(e.target.dataset.index)));
+      document.getElementById('saveQuitBtn').onclick = saveAndQuit;
+      if (gameState.mode === 'challenge') startTimer();
+    }
+
+    function startTimer() {
+      gameState.timeLeft = 15;
+      if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+      gameState.timerInterval = setInterval(() => {
+        gameState.timeLeft--;
+        const fill = document.getElementById('timerFill');
+        const text = document.getElementById('timerText');
+        if (fill) fill.style.width = (gameState.timeLeft / 15 * 100) + '%';
+        if (text) text.innerText = `⏳ ${gameState.timeLeft}s`;
+        if (gameState.timeLeft <= 0) { clearInterval(gameState.timerInterval); handleTimeout(); }
+      }, 1000);
+    }
+
+    function disableOptions() {
+      document.querySelectorAll('.option-btn').forEach(b => b.disabled = true);
+      if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+    }
+
+    function handleTimeout() {
+      disableOptions();
+      gameState.combo = 0; gameState.score -= 5;
+      gameState.answersLog.push({ question: gameState.steps[gameState.currentStep].npc, chosen: 'Time out', correct: false });
+      document.getElementById('feedbackArea').innerHTML = '<span style="color:#c44;">⏰ Time\'s up! -5 points.</span>';
+      setTimeout(() => { gameState.currentStep++; renderGameStep(); }, 1200);
+    }
+
+    function handleOptionClick(index) {
+      disableOptions();
+      const step = gameState.steps[gameState.currentStep];
+      const chosen = step.options[index];
+      const isCorrect = chosen.correct;
+      if (isCorrect) {
+        gameState.combo++;
+        let points = 10 + (gameState.combo > 1 ? (gameState.combo - 1) * 2 : 0);
+        gameState.score += points;
+        gameState.answersLog.push({ question: step.npc, chosen: chosen.text, correct: true });
+        document.getElementById('feedbackArea').innerHTML = `
+          ✅ <strong>+${points} pts</strong> (combo x${gameState.combo})<br>
+          <span class="small-text">${chosen.feedback}</span>
+          <div style="margin-top:0.6rem;background:#fef9e7;padding:0.6rem;border-radius:20px;">📖 ${getCultureTip(gameState.scenarioId, gameState.currentStep)}</div>
+        `;
+      } else {
+        gameState.combo = 0; gameState.score -= 5;
+        gameState.answersLog.push({ question: step.npc, chosen: chosen.text, correct: false });
+        document.getElementById('feedbackArea').innerHTML = `
+          ❌ <strong>-5 pts</strong><br>
+          <span class="small-text">${chosen.feedback}</span>
+          <div style="margin-top:0.6rem;background:#fef9e7;padding:0.6rem;border-radius:20px;">📖 ${getCultureTip(gameState.scenarioId, gameState.currentStep)}</div>
+        `;
+      }
+      document.querySelectorAll('.option-btn').forEach((b, idx) => {
+        if (idx === index) b.classList.add(isCorrect ? 'selected-correct' : 'selected-wrong');
+        if (step.options[idx].correct) b.classList.add('selected-correct');
+      });
+      setTimeout(() => { gameState.currentStep++; renderGameStep(); }, 1800);
+    }
+
+    function getCultureTip(sid, step) {
+      const tips = {
+        british_fox: ["英国人常用天气作为安全话题，避免直接否定。","委婉拒绝是礼貌，'I'm afraid...' 常用。","接受赞美简单道谢即可，过度谦虚反而不自然。"],
+        american_eagle: ["美国职场偏爱轻松积极的语气。","直接表达合作意愿被视为团队精神。","坦然接受祝贺并祝贺对方。"],
+        panda_contrast: ["“吃了吗”只是打招呼，并非询问饮食。","中式谦虚常贬低礼物，应礼貌接受而非点破。"]
+      };
+      return (tips[sid] && tips[sid][step]) || "跨文化交际需要理解语境。";
+    }
+
+    function saveAndQuit() {
+      if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+      const saved = getSavedGames().filter(g => g.user_id !== currentUser.id);
+      saved.push({
+        id: genId(), user_id: currentUser.id, scenario_id: gameState.scenarioId,
+        current_step: gameState.currentStep, score: gameState.score, combo: gameState.combo, mode: gameState.mode
+      });
+      saveSavedGames(saved);
+      resetGameState();
+      renderLobby();
+    }
+
+    async function endGame() {
+      if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+      const finalScore = gameState.score;
+      const newTotal = (currentUser.total_score || 0) + finalScore;
+      const newWeekly = (currentUser.weekly_score || 0) + finalScore;
+      const { error } = await supabase
+        .from('users')
+        .update({ total_score: newTotal, weekly_score: newWeekly })
+        .eq('id', currentUser.id);
+      if (!error) {
+        currentUser.total_score = newTotal;
+        currentUser.weekly_score = newWeekly;
+      }
+      // 本地保存记录
+      const sessions = JSON.parse(localStorage.getItem('cq_sessions') || '[]');
+      sessions.push({ id: genId(), user_id: currentUser.id, scenario_id: gameState.scenarioId, score: finalScore, answers: gameState.answersLog, created_at: new Date().toISOString() });
+      localStorage.setItem('cq_sessions', JSON.stringify(sessions));
+      await refreshRankings();
+      renderResult(finalScore);
+    }
+
+    function renderResult(finalScore) {
+      app.innerHTML = `
+        <div class="card" style="text-align:center;">
+          <h2>🎉 Complete!</h2>
+          <p style="font-size:2rem; color:#b45f2a;">Score: ${finalScore}</p>
+          <div style="margin:1rem 0;">${gameState.answersLog.map(a => `
+            <div style="text-align:left;margin:0.5rem 0;background:#fff8f0;padding:0.6rem;border-radius:16px;">
+              <strong>${a.question}</strong><br>
+              <span style="color:${a.correct?'#2d6a4f':'#c44536'}">${a.correct?'✅':'❌'} ${a.chosen}</span>
+            </div>`).join('')}
+          </div>
+          <button id="againBtn" class="primary">🔄 Play Again</button>
+          <button id="lobbyBtn">🏠 Lobby</button>
+        </div>
+      `;
+      document.getElementById('againBtn').onclick = () => { resetGameState(); renderLobby(); };
+      document.getElementById('lobbyBtn').onclick = () => { resetGameState(); renderLobby(); };
+    }
+
+    // 初始化
+    refreshRankings();
+    renderLogin();
+  })();
+</script>
+</body>
+</html>
